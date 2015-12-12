@@ -21,7 +21,8 @@ namespace LD34
                 Keys.Space,
                 Keys.Right,
                 Keys.Down,
-                Keys.Enter
+                Keys.Enter,
+                Keys.F5
             };
         }
 

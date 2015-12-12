@@ -42,6 +42,7 @@
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="BeatTrigger.cs" />
     <Compile Include="ColourEx.cs" />
     <Compile Include="FrameRateCounter.cs" />
     <Compile Include="Game1.cs" />

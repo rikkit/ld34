@@ -40,10 +40,12 @@ namespace LD34
         /// </summary>
         protected override void Initialize()
         {
+            var beatTrigger = new BeatTrigger(1000);
+
             var frameRateCounter = new FrameRateCounter();
             var mouseGesturer = new MouseGesturer();
             var clickEffects = new GestureEffects();
-            var levelManager = new LevelManager();
+            var levelManager = new LevelManager(beatTrigger);
             var keyboardGesturer = new KeyboardGesturer();
             var menuManager = new MenuManager();
 
@@ -56,6 +58,7 @@ namespace LD34
 
             _updaters = new IUpdater[]
             {
+                beatTrigger,
                 menuManager,
                 levelManager,
                 clickEffects
@@ -130,7 +133,7 @@ namespace LD34
         {
             GraphicsDevice.Clear(new Color(30, 30, 30));
 
-            foreach (IRenderer renderer in _renderers)
+            foreach (var renderer in _renderers)
             {
                 renderer.Render(_spriteBatch, gameTime);
             }
