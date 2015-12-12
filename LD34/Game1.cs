@@ -1,6 +1,6 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System.Linq;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace LD34
 {
@@ -9,12 +9,24 @@ namespace LD34
     /// </summary>
     public class Game1 : Game
     {
-        GraphicsDeviceManager graphics;
-        SpriteBatch spriteBatch;
+        public const int BYTES_PER_PIXEL = 4;
+
+        GraphicsDeviceManager _graphics;
+        SpriteBatch _spriteBatch;
+        private IRenderer[] _renderers;
+        private IUpdater[] _updaters;
+        private IGesturer[] _gesturers;
 
         public Game1()
         {
-            graphics = new GraphicsDeviceManager(this);
+            _graphics = new GraphicsDeviceManager(this)
+            {
+                IsFullScreen = false,
+                PreferredBackBufferHeight = 768,
+                PreferredBackBufferWidth = 1024
+            };
+            IsMouseVisible = true;
+
             Content.RootDirectory = "Content";
         }
 
@@ -26,7 +38,44 @@ namespace LD34
         /// </summary>
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
+            var frameRateCounter = new FrameRateCounter();
+            var mouseGesturer = new MouseGesturer();
+            var clickEffects = new GestureEffects();
+            var levelManager = new LevelManager();
+            var keyboardGesturer = new KeyboardGesturer();
+            var menuManager = new MenuManager();
+
+            // order ==> layer. last is on top.
+            _gesturers = new IGesturer[]
+            {
+                mouseGesturer,
+                keyboardGesturer
+            };
+
+            _updaters = new IUpdater[]
+            {
+                menuManager,
+                levelManager,
+                clickEffects
+            };
+
+            _renderers = new IRenderer[]
+            {
+                levelManager,
+                menuManager,
+                clickEffects,
+                frameRateCounter,
+            };
+
+            var gameComponents = _gesturers
+                .Cast<IGameComponent>()
+                .Concat(_updaters)
+                .Concat(_renderers)
+                .Distinct();
+            foreach (var gameComponent in gameComponents)
+            {
+                gameComponent.Initialise();
+            }
 
             base.Initialize();
         }
@@ -37,15 +86,17 @@ namespace LD34
         /// </summary>
         protected override void LoadContent()
         {
-            // Create a new SpriteBatch, which can be used to draw textures.
-            spriteBatch = new SpriteBatch(GraphicsDevice);
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // TODO: use this.Content to load your game content here
+            foreach (var renderer in _renderers)
+            {
+                renderer.LoadContent(Content, GraphicsDevice, GraphicsDevice.Viewport.Bounds);
+            }
         }
 
         /// <summary>
         /// UnloadContent will be called once per game and is the place to unload
-        /// game-specific content.
+        /// all content.
         /// </summary>
         protected override void UnloadContent()
         {
@@ -59,10 +110,12 @@ namespace LD34
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime)
         {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
+            var completedGestures = _gesturers.SelectMany(g => g.DetectGestures().Where(e => e != null)).ToList();
 
-            // TODO: Add your update logic here
+            foreach (var updater in _updaters)
+            {
+                updater.Update(gameTime, completedGestures);
+            }
 
             base.Update(gameTime);
         }
@@ -73,9 +126,12 @@ namespace LD34
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(new Color(30, 30, 30));
 
-            // TODO: Add your drawing code here
+            foreach (IRenderer renderer in _renderers)
+            {
+                renderer.Render(_spriteBatch, gameTime);
+            }
 
             base.Draw(gameTime);
         }
