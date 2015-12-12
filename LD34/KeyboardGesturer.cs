@@ -7,10 +7,22 @@ namespace LD34
     {
         private List<GestureEvent> _gesturesEvent;
         private KeyboardState _oldState;
+        private Keys[] _acceptedKeys;
 
         public void Initialise()
         {
             _gesturesEvent = new List<GestureEvent>();
+
+            _acceptedKeys = new[]
+            {
+                Keys.Up,
+                Keys.Left,
+                Keys.Escape,
+                Keys.Space,
+                Keys.Right,
+                Keys.Down,
+                Keys.Enter
+            };
         }
 
         /// <summary>
@@ -22,9 +34,12 @@ namespace LD34
 
             _gesturesEvent.Clear();
 
-            if (newState.IsKeyDown(Keys.Up) && _oldState.IsKeyUp(Keys.Up))
+            foreach (var key in _acceptedKeys)
             {
-                _gesturesEvent.Add(new KeyboardEvent(this, Keys.Up));
+                if (newState.IsKeyDown(key) && _oldState.IsKeyUp(key))
+                {
+                    _gesturesEvent.Add(new KeyboardEvent(this, key));
+                }
             }
 
             _oldState = newState;

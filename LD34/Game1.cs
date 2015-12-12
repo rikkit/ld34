@@ -22,10 +22,12 @@ namespace LD34
             _graphics = new GraphicsDeviceManager(this)
             {
                 IsFullScreen = false,
-                PreferredBackBufferHeight = 768,
-                PreferredBackBufferWidth = 1024
+                PreferredBackBufferHeight = 800,
+                PreferredBackBufferWidth = 500
             };
             IsMouseVisible = true;
+
+            Window.Position = new Point(Window.Position.X, 100);
 
             Content.RootDirectory = "Content";
         }
