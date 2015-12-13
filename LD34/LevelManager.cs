@@ -6,6 +6,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using OpenTK.Graphics.ES11;
+using static System.Math;
 
 namespace LD34
 {
@@ -34,9 +36,10 @@ namespace LD34
     public enum CellState
     {
         Empty = 0,
-        Pending = 1,
-        Active = 2,
-        Player = 3
+        Bound = 1,
+        Pending = 2,
+        Active = 3,
+        Player = 4
     }
 
     public class GameEntity
@@ -107,12 +110,17 @@ namespace LD34
         private int _pixelsPerX;
         private int _pixelsPerY;
         private Texture2D[] _textures;
+        private int _virtualBoardWidth;
+        private int _virtualBoardHeight;
         private Color CurrentBackground => _bg12 ? _bg1 : _bg2;
 
         public LevelManager(BeatTrigger beatBeatTrigger)
         {
             _random = new Random();
             _beatTrigger = beatBeatTrigger;
+
+            _virtualBoardWidth = (int)Ceiling(Sqrt(Pow(GRID_WIDTH, 2) * 2));
+            _virtualBoardHeight = 400; // TODO lol this works for the values w = 50, h = 80, gave up trying to work this out. also the name doesn't mean what it says
 
             const int boardCount = CURRENT_BOARD_INDEX + 1;
             _boards = new Queue<CellState[,]>(boardCount);
@@ -130,10 +138,10 @@ namespace LD34
             for (int i = 0; i <= CURRENT_BOARD_INDEX; i++)
             {
                 // Seed the grid
-                var grid = new CellState[GRID_WIDTH, GRID_HEIGHT];
+                var grid = new CellState[GRID_WIDTH, _virtualBoardHeight];
                 for (int x = 0; x < GRID_WIDTH; x++)
                 {
-                    for (int y = 0; y < GRID_HEIGHT; y++)
+                    for (int y = 0; y < _virtualBoardHeight; y++)
                     {
                         grid[x, y] = _random.NextDouble() > 0.8
                             ? CellState.Pending
@@ -174,30 +182,30 @@ namespace LD34
             }
             
             // 3 gliders and 1 dot every ten iterations
-            var gliders = Enumerable.Range(0,3)
+            var gliders = Enumerable.Range(0,5)
                 .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
                 .OrderBy(p => p.X)
                 .Select(GameEntity.Glider);
-            var dots = Enumerable.Range(0, 1)
+            var dots = Enumerable.Range(0, 5)
                 .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
                 .OrderBy(p => p.X)
                 .Select(GameEntity.Dot);
             var shapes = iteration%10 == 0 ? gliders.Concat(dots) : Enumerable.Empty<GameEntity>();
             var shapesArr = shapes.ToArray();
-
+            
             GameEntity currentSpawning = null;
             var currentState = new CellState[9];
-            var newGrid = new CellState[GRID_WIDTH, GRID_HEIGHT];
+            var newGrid = new CellState[GRID_WIDTH, _virtualBoardHeight];
             var currentGrid = _boards.ElementAt(CURRENT_BOARD_INDEX);
-            for (int x = 0; x < GRID_WIDTH; x++)
+            for (int virtualX = 0; virtualX <  GRID_WIDTH * 2; virtualX++) // TODO not sure how many iterations this should actually do
             {
-                for (int y = 0; y < GRID_HEIGHT; y++)
+                for (int virtualY = 0; virtualY < GRID_HEIGHT; virtualY++)
                 {
-                    currentState[0] = GetCellState(currentGrid, x, y); // Self
+                    currentState[0] = GetCellState(currentGrid, virtualX, virtualY); // Self
 
                     if (currentSpawning == null)
                     {
-                        currentSpawning = shapesArr.FirstOrDefault(shape => shape.Start.X == x && shape.Start.Y == y);
+                        currentSpawning = shapesArr.FirstOrDefault(shape => shape.Start.X == virtualX && shape.Start.Y == virtualY);
                     }
 
                     CellState? newState = null;
@@ -205,8 +213,8 @@ namespace LD34
                     {
                         var p = currentSpawning.Start;
 
-                        var oX = x - p.X;
-                        var oY = y - p.Y;
+                        var oX = virtualX - p.X;
+                        var oY = virtualY - p.Y;
                         
                         var boundX = currentSpawning.Template.GetUpperBound(0);
                         var boundY = currentSpawning.Template.GetUpperBound(1);
@@ -228,14 +236,14 @@ namespace LD34
                     }
                     else if (!newState.HasValue)
                     {
-                        currentState[1] = GetCellState(currentGrid, x, y - 1); // North
-                        currentState[2] = GetCellState(currentGrid, x + 1, y - 1); // NE
-                        currentState[3] = GetCellState(currentGrid, x + 1, y); // East
-                        currentState[4] = GetCellState(currentGrid, x + 1, y + 1); // SE
-                        currentState[5] = GetCellState(currentGrid, x, y + 1); // South
-                        currentState[6] = GetCellState(currentGrid, x - 1, y + 1); // SW
-                        currentState[7] = GetCellState(currentGrid, x - 1, y); // West
-                        currentState[8] = GetCellState(currentGrid, x - 1, y - 1); // NW
+                        currentState[1] = GetCellState(currentGrid, virtualX, virtualY - 1); // North
+                        currentState[2] = GetCellState(currentGrid, virtualX + 1, virtualY - 1); // NE
+                        currentState[3] = GetCellState(currentGrid, virtualX + 1, virtualY); // East
+                        currentState[4] = GetCellState(currentGrid, virtualX + 1, virtualY + 1); // SE
+                        currentState[5] = GetCellState(currentGrid, virtualX, virtualY + 1); // South
+                        currentState[6] = GetCellState(currentGrid, virtualX - 1, virtualY + 1); // SW
+                        currentState[7] = GetCellState(currentGrid, virtualX - 1, virtualY); // West
+                        currentState[8] = GetCellState(currentGrid, virtualX - 1, virtualY - 1); // NW
 
                         var neighbourCount = currentState.Skip(1).Count(s => s.Collides());
 
@@ -257,12 +265,16 @@ namespace LD34
                         }
                     }
                     
-                    if (newState.Value.Collides() && _boards.All(b => b[x, y].Collides()))
+                    if (newState.Value.Collides() && _boards.All(b => GetCellState(b, virtualX, virtualY).Collides()))
                     {
                         newState = CellState.Empty;
                     }
+                    
+                    var actualX = virtualX % GRID_WIDTH;
+                    var band = (virtualX / GRID_WIDTH);
+                    var actualY = virtualY + (band * GRID_WIDTH);
 
-                    newGrid[x, y] = newState.Value;
+                    newGrid[actualX, actualY] = newState.Value;
                 }
             }
             
@@ -287,12 +299,15 @@ namespace LD34
             var rotRect = new Vector2[4];
             var currentBoard = _boards.ElementAt(CURRENT_BOARD_INDEX);
 
-            for (int x = 0; x < GRID_WIDTH; x++)
+            var boardOffset = new Vector2(0, 0);
+            var yOffset = Sqrt(Pow(GRID_WIDTH, 2)/2) - 10;
+
+            for (int x = 0; x < GRID_HEIGHT + yOffset; x++)
             {
                 for (int y = 0; y < GRID_HEIGHT; y++)
                 {
                     Color c;
-                    switch (currentBoard[x,y])
+                    switch (GetCellState(currentBoard, x, y))
                     {
                         case CellState.Active:
                             c = Color.Crimson;
@@ -303,6 +318,9 @@ namespace LD34
                         case CellState.Player:
                             c = Color.CornflowerBlue;
                             break;
+                        case CellState.Bound:
+                            c = Color.CornflowerBlue;
+                            break;
                         default:
                             continue;
                     }
@@ -311,8 +329,7 @@ namespace LD34
                     var rotTranslation = new Vector2(GRID_WIDTH * _pixelsPerX, 0);
                     var targetT = targetO - rotTranslation;
                     var targetR = Vector2.Transform(targetT, rotMat);
-                    var centreTranslation = new Vector2(0, 0);
-                    var targetN = targetR + rotTranslation + centreTranslation;
+                    var targetN = targetR + rotTranslation + boardOffset;
                     
                     var tex = _textures[0];
                     spriteBatch.Draw(tex, targetN, new Rectangle(0,0, _pixelsPerX, _pixelsPerY), c, MathHelper.ToRadians(45), new Vector2(0, 0), Vector2.One, SpriteEffects.None, 1);
@@ -321,20 +338,42 @@ namespace LD34
             spriteBatch.End();
         }
 
-        private CellState GetCellState(CellState[,] grid, int x, int y)
+        private CellState GetCellState(CellState[,] grid, int virtualX, int virtualY)
         {
-            if (y == 1)
+            if (virtualX < 0 || virtualY < 0)
+            {
+                return CellState.Bound;
+            }
+
+            // Clip the top side
+            if (virtualX + virtualY < GRID_WIDTH)
             {
                 return CellState.Active;
             }
 
-            if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT)
+            // Clip the left side
+            if (virtualY - virtualX == GRID_WIDTH)
             {
-                return CellState.Empty;
+                return CellState.Bound;
             }
 
-            return grid[x, y];
-        }
+            // Clip the right side
+            if (virtualX - virtualY == GRID_WIDTH + 1)
+            {
+                return CellState.Bound;
+            }
 
+            // clip the bottom
+            if (virtualX + virtualY >= _virtualBoardHeight)
+            {
+                return CellState.Bound;
+            }
+            
+            var band = virtualX / GRID_WIDTH;
+            var actualX = virtualX % GRID_WIDTH;
+            var actualY = band * GRID_WIDTH + virtualY;
+
+            return grid[actualX, actualY];
+        }
     }
 }
