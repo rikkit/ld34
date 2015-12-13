@@ -23,7 +23,7 @@ namespace LD34
             {
                 IsFullScreen = false,
                 PreferredBackBufferHeight = 800,
-                PreferredBackBufferWidth = 1000
+                PreferredBackBufferWidth = 500
             };
             IsMouseVisible = true;
 

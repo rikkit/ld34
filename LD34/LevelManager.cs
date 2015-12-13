@@ -89,7 +89,7 @@ namespace LD34
 
     public class LevelManager : IRenderer, IUpdater
     {
-        private const int GRID_WIDTH = 100;
+        private const int GRID_WIDTH = 50;
         private const int GRID_HEIGHT = 80;
         private const int SPAWN_HEIGHT = 30;
         private const int CURRENT_BOARD_INDEX = 4;
@@ -107,22 +107,6 @@ namespace LD34
         private int _pixelsPerX;
         private int _pixelsPerY;
         private Texture2D[] _textures;
-        
-        private CellState GetCellState(CellState[,] grid, int x, int y)
-        {
-            if (y == 1)
-            {
-                return CellState.Active;
-            }
-
-            if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT)
-            {
-                return CellState.Empty;
-            }
-
-            return grid[x, y];
-        }
-
         private Color CurrentBackground => _bg12 ? _bg1 : _bg2;
 
         public LevelManager(BeatTrigger beatBeatTrigger)
@@ -138,7 +122,6 @@ namespace LD34
         {
             ResetGrid();
         }
-        
 
         private void ResetGrid()
         {
@@ -194,11 +177,11 @@ namespace LD34
             var gliders = Enumerable.Range(0,3)
                 .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
                 .OrderBy(p => p.X)
-                .Select(p => GameEntity.Glider(p));
+                .Select(GameEntity.Glider);
             var dots = Enumerable.Range(0, 1)
                 .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
                 .OrderBy(p => p.X)
-                .Select(p => GameEntity.Dot(p));
+                .Select(GameEntity.Dot);
             var shapes = iteration%10 == 0 ? gliders.Concat(dots) : Enumerable.Empty<GameEntity>();
             var shapesArr = shapes.ToArray();
 
@@ -299,11 +282,14 @@ namespace LD34
             var newBgColor = _bg12 ? _bg1 : _bg2;
             _graphicsDevice.Clear(newBgColor);
 
-            var currentBoard = _boards.ElementAt(CURRENT_BOARD_INDEX);
             // Draw pixel overlay
-            for (int y = 0; y < GRID_HEIGHT; y++)
+            var rotMat = Matrix.CreateRotationZ(MathHelper.ToRadians(45));
+            var rotRect = new Vector2[4];
+            var currentBoard = _boards.ElementAt(CURRENT_BOARD_INDEX);
+
+            for (int x = 0; x < GRID_WIDTH; x++)
             {
-                for (int x = 0; x < GRID_WIDTH; x++)
+                for (int y = 0; y < GRID_HEIGHT; y++)
                 {
                     Color c;
                     switch (currentBoard[x,y])
@@ -320,12 +306,35 @@ namespace LD34
                         default:
                             continue;
                     }
-
+                    
+                    var targetO = new Vector2(_pixelsPerX * x, _pixelsPerY * y);
+                    var rotTranslation = new Vector2(GRID_WIDTH * _pixelsPerX, 0);
+                    var targetT = targetO - rotTranslation;
+                    var targetR = Vector2.Transform(targetT, rotMat);
+                    var centreTranslation = new Vector2(0, 0);
+                    var targetN = targetR + rotTranslation + centreTranslation;
+                    
                     var tex = _textures[0];
-                    spriteBatch.Draw(tex, new Rectangle(_pixelsPerX * x, _pixelsPerY * y, _pixelsPerX, _pixelsPerY), c);
+                    spriteBatch.Draw(tex, targetN, new Rectangle(0,0, _pixelsPerX, _pixelsPerY), c, MathHelper.ToRadians(45), new Vector2(0, 0), Vector2.One, SpriteEffects.None, 1);
                 }
             }
             spriteBatch.End();
         }
+
+        private CellState GetCellState(CellState[,] grid, int x, int y)
+        {
+            if (y == 1)
+            {
+                return CellState.Active;
+            }
+
+            if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT)
+            {
+                return CellState.Empty;
+            }
+
+            return grid[x, y];
+        }
+
     }
 }
