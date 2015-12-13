@@ -17,6 +17,8 @@ namespace LD34
         private readonly int _initialFrequencyMs;
         private TimeSpan _lastTriggeredTime;
 
+        private long _iterations = 0;
+
         private int _currentFrequencyMs;
 
         public BeatTrigger(int initialFrequencyMs, int frequencyStep = 50)
@@ -50,10 +52,13 @@ namespace LD34
             }
         }
 
-        public bool Triggering(GameTime gameTime)
+        public bool Triggering(GameTime gameTime, out long iterations)
         {
+            iterations = _iterations;
+
             if (gameTime.TotalGameTime == _lastTriggeredTime)
             {
+                _iterations++;
                 return true;
             }
 
@@ -61,6 +66,7 @@ namespace LD34
 
             if (delta.TotalMilliseconds > _currentFrequencyMs + _tolerance)
             {
+                _iterations++;
                 _lastTriggeredTime = gameTime.TotalGameTime;
                 return true;
             }
