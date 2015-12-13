@@ -21,7 +21,7 @@ namespace LD34
 
         private int _currentFrequencyMs;
 
-        public BeatTrigger(int initialFrequencyMs, int frequencyStep = 50)
+        public BeatTrigger(int initialFrequencyMs, int frequencyStep = 10)
         {
             _lastTriggeredTime = TimeSpan.Zero;
             _initialFrequencyMs = initialFrequencyMs;

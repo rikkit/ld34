@@ -40,7 +40,7 @@ namespace LD34
         /// </summary>
         protected override void Initialize()
         {
-            var beatTrigger = new BeatTrigger(1000);
+            var beatTrigger = new BeatTrigger(10);
 
             var frameRateCounter = new FrameRateCounter();
             var mouseGesturer = new MouseGesturer();
