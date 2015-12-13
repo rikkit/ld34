@@ -28,7 +28,7 @@ namespace LD34
 
     public class LevelManager : IRenderer, IUpdater
     {
-        private const int GRID_WIDTH = 50;
+        private const int GRID_WIDTH = 100;
         private const int GRID_HEIGHT = 80;
         private const int SPAWN_HEIGHT = 30;
         private const int CURRENT_BOARD_INDEX = 4;

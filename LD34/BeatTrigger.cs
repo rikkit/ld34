@@ -11,7 +11,7 @@ namespace LD34
         /// <summary>
         /// Tolerate small delays
         /// </summary>
-        private readonly int _tolerance = 50;
+        private readonly int _tolerance = 16;
 
         private readonly int _frequencyStep;
         private readonly int _initialFrequencyMs;
