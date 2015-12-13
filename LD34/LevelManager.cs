@@ -26,6 +26,67 @@ namespace LD34
         }
     }
 
+    public static class CellStateExtensions
+    {
+        public static bool Collides(this CellState state) => state == CellState.Active || state == CellState.Player;
+    }
+
+    public enum CellState
+    {
+        Empty = 0,
+        Pending = 1,
+        Active = 2,
+        Player = 3
+    }
+
+    public class GameEntity
+    {
+        public CellState[,] Template { get; private set; }
+        public Point Start { get; private set; }
+
+        private GameEntity() {}
+        
+        public static GameEntity Glider(Point position)
+        {
+            return new GameEntity
+            {
+                Start = position,
+                Template = new CellState[3, 3]
+                {
+                    {
+                        CellState.Active,
+                        CellState.Empty,
+                        CellState.Active
+                    },
+                    {
+                        CellState.Empty,
+                        CellState.Active,
+                        CellState.Active
+                    },
+                    {
+                        CellState.Empty,
+                        CellState.Active,
+                        CellState.Empty
+                    }
+                }
+            };
+        }
+
+        public static GameEntity Dot(Point position)
+        {
+            return new GameEntity
+            {
+                Start = position,
+                Template = new CellState[1, 1]
+                {
+                    {
+                        CellState.Pending
+                    }
+                }
+            };
+        }
+    }
+
     public class LevelManager : IRenderer, IUpdater
     {
         private const int GRID_WIDTH = 100;
@@ -36,6 +97,8 @@ namespace LD34
         private readonly Color _bg1 = new Color(30, 30, 30);
         private readonly Color _bg2 = new Color(50, 50, 50);
         private readonly BeatTrigger _beatTrigger;
+        private readonly Random _random;
+        private readonly Queue<CellState[,]> _boards;
 
         private bool _bg12;
 
@@ -44,19 +107,17 @@ namespace LD34
         private int _pixelsPerX;
         private int _pixelsPerY;
         private Texture2D[] _textures;
-        private Random _random;
-        private Queue<bool[,]> _boards;
         
-        private bool GetCellState(bool[,] grid, int x, int y)
+        private CellState GetCellState(CellState[,] grid, int x, int y)
         {
             if (y == 1)
             {
-                return true;
+                return CellState.Active;
             }
 
             if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT)
             {
-                return false;
+                return CellState.Empty;
             }
 
             return grid[x, y];
@@ -70,7 +131,7 @@ namespace LD34
             _beatTrigger = beatBeatTrigger;
 
             const int boardCount = CURRENT_BOARD_INDEX + 1;
-            _boards = new Queue<bool[,]>(boardCount);
+            _boards = new Queue<CellState[,]>(boardCount);
         }
 
         public void Initialise()
@@ -86,12 +147,14 @@ namespace LD34
             for (int i = 0; i <= CURRENT_BOARD_INDEX; i++)
             {
                 // Seed the grid
-                var grid = new bool[GRID_WIDTH, GRID_HEIGHT];
+                var grid = new CellState[GRID_WIDTH, GRID_HEIGHT];
                 for (int x = 0; x < GRID_WIDTH; x++)
                 {
                     for (int y = 0; y < GRID_HEIGHT; y++)
                     {
-                        grid[x, y] = _random.NextDouble() > 0.6;
+                        grid[x, y] = _random.NextDouble() > 0.8
+                            ? CellState.Pending
+                            : CellState.Empty;
                     }
                 }
 
@@ -126,40 +189,22 @@ namespace LD34
             {
                 return;
             }
+            
+            // 3 gliders and 1 dot every ten iterations
+            var gliders = Enumerable.Range(0,3)
+                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
+                .OrderBy(p => p.X)
+                .Select(p => GameEntity.Glider(p));
+            var dots = Enumerable.Range(0, 1)
+                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
+                .OrderBy(p => p.X)
+                .Select(p => GameEntity.Dot(p));
+            var shapes = iteration%10 == 0 ? gliders.Concat(dots) : Enumerable.Empty<GameEntity>();
+            var shapesArr = shapes.ToArray();
 
-            var glider = new bool[3, 3]
-            {
-                {
-                    true,
-                    false,
-                    true
-                },
-                {
-                    false,
-                    true,
-                    true
-                },
-                {
-                    false,
-                    true,
-                    false
-                }
-            };
-
-            var currentState = new bool[9];
-
-            var maxSpawns = 2;
-
-            var spawnPoints = iteration%5 == 0
-                ? Enumerable.Range(0, maxSpawns)
-                    .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
-                    .OrderBy(p => p.X)
-                    .Cast<Point?>()
-                    .ToArray()
-                : Enumerable.Empty<Point?>().ToArray();
-
-            Point? spawnPoint = null;
-            var newGrid = new bool[GRID_WIDTH, GRID_HEIGHT];
+            GameEntity currentSpawning = null;
+            var currentState = new CellState[9];
+            var newGrid = new CellState[GRID_WIDTH, GRID_HEIGHT];
             var currentGrid = _boards.ElementAt(CURRENT_BOARD_INDEX);
             for (int x = 0; x < GRID_WIDTH; x++)
             {
@@ -167,35 +212,38 @@ namespace LD34
                 {
                     currentState[0] = GetCellState(currentGrid, x, y); // Self
 
-                    if (!spawnPoint.HasValue)
+                    if (currentSpawning == null)
                     {
-                        spawnPoint = spawnPoints.FirstOrDefault(p => p?.X == x && p?.Y == y);
+                        currentSpawning = shapesArr.FirstOrDefault(shape => shape.Start.X == x && shape.Start.Y == y);
                     }
 
-                    bool? newState = null;
-                    if (spawnPoint.HasValue)
+                    CellState? newState = null;
+                    if (currentSpawning != null)
                     {
-                        var p = spawnPoint.Value;
+                        var p = currentSpawning.Start;
 
                         var oX = x - p.X;
                         var oY = y - p.Y;
-
-                        var shape = glider;
-                        var boundX = shape.GetUpperBound(0);
-                        var boundY = shape.GetUpperBound(1);
+                        
+                        var boundX = currentSpawning.Template.GetUpperBound(0);
+                        var boundY = currentSpawning.Template.GetUpperBound(1);
 
                         if (oY >= 0 && oX >= 0 && oY <= boundY && oX <= boundX)
                         {
-                            newState = shape[oX, oY];
+                            newState = currentSpawning.Template[oX, oY];
 
                             if (oY == boundY && oX == boundX)
                             {
-                                spawnPoint = null;
+                                currentSpawning = null;
                             }
                         }
                     }
-
-                    if (!newState.HasValue)
+                    
+                    if (currentState[0] == CellState.Pending)
+                    {
+                        newState = CellState.Active;
+                    }
+                    else if (!newState.HasValue)
                     {
                         currentState[1] = GetCellState(currentGrid, x, y - 1); // North
                         currentState[2] = GetCellState(currentGrid, x + 1, y - 1); // NE
@@ -206,31 +254,31 @@ namespace LD34
                         currentState[7] = GetCellState(currentGrid, x - 1, y); // West
                         currentState[8] = GetCellState(currentGrid, x - 1, y - 1); // NW
 
-                        var neighbourCount = currentState.Skip(1).Count(s => s);
-                        
+                        var neighbourCount = currentState.Skip(1).Count(s => s.Collides());
+
                         // 2. Any live cell with two or three live neighbours lives on to the next generation.
-                        if (currentState[0] && neighbourCount >= 2 && neighbourCount <= 3)
+                        if (currentState[0].Collides() && neighbourCount >= 2 && neighbourCount <= 3)
                         {
                             newState = currentState[0];
                         }
-                        else if (!currentState[0] && neighbourCount == 3)
+                        else if (!currentState[0].Collides() && neighbourCount == 3)
                         {
                             // 4. Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
-                            newState = true;
+                            newState = CellState.Active;
                         }
                         else
                         {
                             // 1. Any live cell with fewer than two live neighbours dies, as if caused by under-population.
                             // 3. Any live cell with more than three live neighbours dies, as if by over-population.
-                            newState = false;
+                            newState = CellState.Empty;
                         }
                     }
-
-                    if (newState.Value && _boards.All(b => b[x, y]))
-                    {
-                        newState = false;
-                    }
                     
+                    if (newState.Value.Collides() && _boards.All(b => b[x, y].Collides()))
+                    {
+                        newState = CellState.Empty;
+                    }
+
                     newGrid[x, y] = newState.Value;
                 }
             }
@@ -257,13 +305,24 @@ namespace LD34
             {
                 for (int x = 0; x < GRID_WIDTH; x++)
                 {
-                    if (!currentBoard[x, y])
+                    Color c;
+                    switch (currentBoard[x,y])
                     {
-                        continue;
+                        case CellState.Active:
+                            c = Color.Crimson;
+                            break;
+                        case CellState.Pending:
+                            c = Color.OrangeRed;
+                            break;
+                        case CellState.Player:
+                            c = Color.CornflowerBlue;
+                            break;
+                        default:
+                            continue;
                     }
 
                     var tex = _textures[0];
-                    spriteBatch.Draw(tex, new Rectangle(_pixelsPerX * x, _pixelsPerY * y, _pixelsPerX, _pixelsPerY), Color.OrangeRed);
+                    spriteBatch.Draw(tex, new Rectangle(_pixelsPerX * x, _pixelsPerY * y, _pixelsPerX, _pixelsPerY), c);
                 }
             }
             spriteBatch.End();
