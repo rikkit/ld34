@@ -22,7 +22,7 @@ namespace LD34
             _blockedGestureTypes = new List<GestureType>();
         }
 
-        public void Update(GameTime gameTime, IEnumerable<GestureEvent> completedGestures)
+        public void Update(GameTime gameTime, IList<GestureEvent> completedGestures)
         {
             var gestures = completedGestures.Where(g => !_blockedGestureTypes.Contains(g.Type)).ToList();
             

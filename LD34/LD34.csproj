@@ -43,9 +43,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="BeatTrigger.cs" />
+    <Compile Include="CellState.cs" />
+    <Compile Include="CellStateExtensions.cs" />
     <Compile Include="ColourEx.cs" />
     <Compile Include="FrameRateCounter.cs" />
     <Compile Include="Game1.cs" />
+    <Compile Include="GameEntity.cs" />
     <Compile Include="GestureEffects.cs" />
     <Compile Include="GestureEvent.cs" />
     <Compile Include="GestureType.cs" />
@@ -62,6 +65,7 @@
     <Compile Include="MouseGesturer.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Texture2DEx.cs" />
     <Compile Include="TextureInfo.cs" />
   </ItemGroup>
   <ItemGroup>

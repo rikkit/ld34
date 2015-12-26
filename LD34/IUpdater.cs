@@ -8,6 +8,6 @@ namespace LD34
     /// </summary>
     public interface IUpdater : IGameComponent
     {
-        void Update(GameTime gameTime, IEnumerable<GestureEvent> completedGestures);
+        void Update(GameTime gameTime, IList<GestureEvent> completedGestures);
     }
 }

@@ -33,7 +33,7 @@ namespace LD34
         {
         }
 
-        public void Update(GameTime gameTime, IEnumerable<GestureEvent> completedGestures)
+        public void Update(GameTime gameTime, IList<GestureEvent> completedGestures)
         {
             foreach (var keyEvent in completedGestures.GetEvents<KeyboardEvent>())
             {

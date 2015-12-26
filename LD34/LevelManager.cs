@@ -1,95 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using OpenTK.Graphics.ES11;
 using static System.Math;
 
 namespace LD34
 {
-    public static class Texture2DEx
-    {
-        public static Texture2D NewSolid(GraphicsDevice graphicsDevice, int width, int height, Color colour)
-        {
-            var texture = new Texture2D(graphicsDevice, width, height);
-            var texSize = width * height * Game1.BYTES_PER_PIXEL;
-            var bytes = new byte[texSize];
-            for (var i = 0; i < texSize; i++)
-            {
-                bytes[i] = 255;
-            }
-            texture.SetData(0, new Rectangle(0, 0, width, height), bytes, 0, texSize);
-
-            return texture;
-        }
-    }
-
-    public static class CellStateExtensions
-    {
-        public static bool Collides(this CellState state) => state == CellState.Active || state == CellState.Player;
-    }
-
-    public enum CellState
-    {
-        Empty = 0,
-        Bound = 1,
-        Pending = 2,
-        Active = 3,
-        Player = 4
-    }
-
-    public class GameEntity
-    {
-        public CellState[,] Template { get; private set; }
-        public Point Start { get; private set; }
-
-        private GameEntity() {}
-        
-        public static GameEntity Glider(Point position)
-        {
-            return new GameEntity
-            {
-                Start = position,
-                Template = new CellState[3, 3]
-                {
-                    {
-                        CellState.Active,
-                        CellState.Empty,
-                        CellState.Active
-                    },
-                    {
-                        CellState.Empty,
-                        CellState.Active,
-                        CellState.Active
-                    },
-                    {
-                        CellState.Empty,
-                        CellState.Active,
-                        CellState.Empty
-                    }
-                }
-            };
-        }
-
-        public static GameEntity Dot(Point position)
-        {
-            return new GameEntity
-            {
-                Start = position,
-                Template = new CellState[1, 1]
-                {
-                    {
-                        CellState.Pending
-                    }
-                }
-            };
-        }
-    }
-
     public class LevelManager : IRenderer, IUpdater
     {
         private const int GRID_WIDTH = 50;
@@ -112,6 +31,9 @@ namespace LD34
         private Texture2D[] _textures;
         private int _virtualBoardWidth;
         private int _virtualBoardHeight;
+        private GameEntity[] _newShapes;
+        private const int MAX_NEW_SHAPES = 10;
+
         private Color CurrentBackground => _bg12 ? _bg1 : _bg2;
 
         public LevelManager(BeatTrigger beatBeatTrigger)
@@ -124,6 +46,8 @@ namespace LD34
 
             const int boardCount = CURRENT_BOARD_INDEX + 1;
             _boards = new Queue<CellState[,]>(boardCount);
+
+            _newShapes = new GameEntity[10];
         }
 
         public void Initialise()
@@ -167,7 +91,27 @@ namespace LD34
             };
         }
 
-        public void Update(GameTime gameTime, IEnumerable<GestureEvent> completedGestures)
+        private void LoadGameEntities(long iteration, IList<GestureEvent> completedGestures, GameEntity[] newShapes)
+        {
+            // 3 gliders and 1 dot every ten iterations
+            var gliders = Enumerable.Range(0, 5)
+                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
+                .OrderBy(p => p.X)
+                .Select(GameEntity.Glider);
+            var dots = Enumerable.Range(0, 5)
+                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
+                .OrderBy(p => p.X)
+                .Select(GameEntity.Dot);
+            var shapes = iteration % 10 == 0 ? gliders.Concat(dots) : Enumerable.Empty<GameEntity>();
+
+            var enumerator = shapes.GetEnumerator();
+            for (int i = 0; i < MAX_NEW_SHAPES; i++)
+            {
+                newShapes[i] = enumerator.MoveNext() ? enumerator.Current : null;
+            }
+        }
+
+        public void Update(GameTime gameTime, IList<GestureEvent> completedGestures)
         {
             if (completedGestures.GetEvents<KeyboardEvent>().Any(k => k.Key == Keys.F5))
             {
@@ -181,17 +125,7 @@ namespace LD34
                 return;
             }
             
-            // 3 gliders and 1 dot every ten iterations
-            var gliders = Enumerable.Range(0,5)
-                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
-                .OrderBy(p => p.X)
-                .Select(GameEntity.Glider);
-            var dots = Enumerable.Range(0, 5)
-                .Select(i => new Point(_random.Next(0, GRID_WIDTH), _random.Next(0, SPAWN_HEIGHT)))
-                .OrderBy(p => p.X)
-                .Select(GameEntity.Dot);
-            var shapes = iteration%10 == 0 ? gliders.Concat(dots) : Enumerable.Empty<GameEntity>();
-            var shapesArr = shapes.ToArray();
+            LoadGameEntities(iteration, completedGestures, _newShapes);
             
             GameEntity currentSpawning = null;
             var currentState = new CellState[9];
@@ -202,10 +136,12 @@ namespace LD34
                 for (int virtualY = 0; virtualY < GRID_HEIGHT; virtualY++)
                 {
                     currentState[0] = GetCellState(currentGrid, virtualX, virtualY); // Self
-
+                    
                     if (currentSpawning == null)
                     {
-                        currentSpawning = shapesArr.FirstOrDefault(shape => shape.Start.X == virtualX && shape.Start.Y == virtualY);
+                        currentSpawning = _newShapes
+                            .Where(shape => shape != null)
+                            .FirstOrDefault(shape => shape.Start.X == virtualX && shape.Start.Y == virtualY);
                     }
 
                     CellState? newState = null;
